@@ -1,97 +1,72 @@
-# Azure Blob Downloader – Edge Extension
+# MTA ASITE File Downloader – Python GUI App
 
-Downloads files from your Azure Blob Storage container by reading file numbers from a CSV — exactly what the original Python script did, but entirely inside Microsoft Edge.
-
----
-
-## How It Works
-
-1. You drop (or select) a CSV file with a **number** column.
-2. You type the **folder / prefix** inside your container (e.g. `2024-reports`).
-3. The extension authenticates you to Azure via your browser login (no credentials stored locally).
-4. It lists the blobs under that prefix, matches them to your CSV numbers, and downloads every match using Edge's built-in download manager.
+A simple desktop application with graphical interface for downloading files from Azure Blob Storage. Built with Python's tkinter (no external GUI libraries needed).
 
 ---
 
-## Before You Start – Azure App Registration
+## Features
 
-You need a **registered application** in Azure AD that has permission to read your storage account.
+- ✅ **Simple GUI** – No command line needed
+- ✅ **Azure AD Authentication** – Secure browser-based login (same as Azure CLI)
+- ✅ **CSV Input** – Load file numbers from CSV
+- ✅ **Real-time Progress** – See files being downloaded live
+- ✅ **No CORS Issues** – Works as a native desktop app
+- ✅ **Read-Only** – Cannot delete or modify files, only download
 
-1. Go to **Azure Portal → App Registrations → New registration**.
-2. Give it any name (e.g. `AziteBlobDownloader`).
-3. Set **Supported account types** to whichever suits your org.
-4. Under **Redirect URI**, choose **Single-page application** and add:
+---
+
+## Requirements
+
+- Python 3.7 or later
+- Azure Python libraries:
+  ```bash
+  pip3 install azure-identity azure-storage-blob
+  ```
+
+---
+
+## Installation
+
+1. **Clone or download this repository**
+
+2. **Install dependencies:**
+   ```bash
+   pip3 install azure-identity azure-storage-blob
    ```
-   chrome-extension://<EXTENSION_ID>/auth_redirect.html
+
+3. **Run the app:**
+   ```bash
+   python3 asite_downloader_gui.py
    ```
-   *(you'll get the extension ID after loading it – see step below, then come back and add it)*
-5. Go to **API permissions → Add permission → Azure Blob Storage → User.Read** (or `Storage Blob Data Reader`).
-6. Grant admin consent.
-7. Note your **Client ID** and **Tenant ID** from the app overview page.
 
 ---
 
-## Config – Two Values to Edit
+## How to Use
 
-Open **background.js** and replace the placeholders at the top:
+1. **Launch the app:**
+   ```bash
+   python3 asite_downloader_gui.py
+   ```
 
-```js
-const AUTH_CONFIG = {
-  clientId:  "YOUR_CLIENT_ID_HERE",        // ← paste Client ID
-  authority: "https://login.microsoftonline.com/YOUR_TENANT_ID_HERE", // ← paste Tenant ID
-  ...
-};
-```
+2. **Enter folder name** – Type the Azure blob folder/prefix (e.g., `2024-reports`)
 
----
+3. **Select CSV file** – Click "Browse..." and choose your CSV file with file numbers
 
-## Install Into Edge (Sideload)
+4. **Click "Start Download"** – The app will:
+   - Open a browser window for Azure login
+   - Authenticate you securely
+   - Search for files matching your CSV numbers
+   - Download them to `~/Downloads/[folder]ASITEFiles/`
 
-1. Open Edge and go to `edge://extensions`.
-2. Enable **Developer mode** (toggle, top-right).
-3. Click **Load unpacked**.
-4. Select this folder (the one containing `manifest.json`).
-5. The extension icon appears in your toolbar. Click it.
-6. Copy the **Extension ID** shown on the extensions page and go back to finish the App Registration redirect URI (see above).
-
----
-
-## Usage
-
-| Step | What to do |
-|------|-----------|
-| 1 | Click the extension icon in the toolbar. |
-| 2 | Click **Login** – a browser popup will ask you to sign in with your Azure account. |
-| 3 | Type the folder/prefix name in the input field. |
-| 4 | Drag your CSV onto the drop zone (or click to browse). |
-| 5 | Click **Preview** to see which blobs will match, or **Download Files** to fetch them. |
-
-Downloaded files land in your browser's default **Downloads** folder.
-
----
-
-## File Structure
-
-```
-azure-blob-downloader/
-├── manifest.json          – Extension manifest (MV3)
-├── background.js          – Service worker: auth token management + download logic
-├── offscreen.html         – Hidden page that runs MSAL (needs DOM)
-├── popup.html             – Toolbar popup UI
-├── popup.js               – Popup interactions & CSV parsing
-├── icons/
-│   ├── icon16.png
-│   ├── icon48.png
-│   └── icon128.png
-└── README.md              – This file
-```
+5. **Monitor progress** – Watch the log area for real-time updates
 
 ---
 
 ## CSV Format
 
-The extension reads the first column. A header row is optional — if present, the first cell should be one of: `number`, `numbers`, `file`, `files`. Numeric values are zero-padded to 4 digits (matching the original script's `zfill(4)`).
+The CSV should have file numbers in the first column. A header row is optional.
 
+**Example:**
 ```csv
 number
 42
@@ -99,15 +74,108 @@ number
 7
 ```
 
-becomes lookups for `0042`, `1234`, `0007`.
+- Numeric values are automatically zero-padded to 4 digits
+- Becomes lookups for: `0042`, `1234`, `0007`
+- First row skipped if it contains: `number`, `numbers`, `file`, or `files`
+
+---
+
+## Configuration
+
+The app is pre-configured to connect to:
+- **Storage Account:** `asitemta`
+- **Container:** `asite-mta-data`
+
+To change these, edit the constants at the top of `asite_downloader_gui.py`:
+
+```python
+STORAGE = "asitemta"
+CONTAINER = "asite-mta-data"
+```
+
+---
+
+## Authentication
+
+The app uses **Azure CLI's public client ID** for authentication, which means:
+- ✅ No Azure app registration needed
+- ✅ Same authentication as Python's `InteractiveBrowserCredential`
+- ✅ Works with any Azure AD tenant
+- ✅ Secure browser-based login (no credentials stored in the app)
+
+---
+
+## Download Location
+
+Files are downloaded to:
+```
+~/Downloads/[YourFolderName]ASITEFiles/
+```
+
+For example, if your folder is `2024-reports`, files go to:
+```
+~/Downloads/2024-reportsASITEFiles/
+```
+
+---
+
+## Supported File Types
+
+The app automatically searches for files with these extensions:
+- Images: `.jpg`, `.jpeg`, `.png`
+- Documents: `.pdf`, `.txt`, `.docx`
+- Data: `.csv`, `.xlsx`
 
 ---
 
 ## Troubleshooting
 
-| Problem | Fix |
-|---------|-----|
-| "Auth timed out" | Pop-ups may be blocked. Allow pop-ups for `login.microsoftonline.com` in Edge settings. |
-| "List failed: 403" | Your Azure App Registration needs the correct storage permissions and admin consent. |
-| No files match | Use **Preview** to see what blobs actually exist under that prefix and compare with your CSV numbers. |
-| Token expires mid-download | The extension automatically re-authenticates after 55 minutes. If a download fails, click **Re-auth** and retry. |
+| Problem | Solution |
+|---------|----------|
+| **"No module named 'azure'"** | Run: `pip3 install azure-identity azure-storage-blob` |
+| **Browser login doesn't open** | Check your firewall settings, ensure port 8400 is not blocked |
+| **"Authentication failed"** | Make sure you have access to the Azure storage account with your Microsoft account |
+| **Files not found** | Verify the folder name matches exactly (case-sensitive) and files exist in that folder |
+| **Window appears blank** | Try running with `python3 -u asite_downloader_gui.py` for unbuffered output |
+
+---
+
+## Security
+
+This application is **read-only** and:
+- ❌ Cannot delete files
+- ❌ Cannot modify files
+- ❌ Cannot upload files
+- ✅ Can only list and download files
+
+Your Azure AD credentials are handled securely by Microsoft's authentication libraries and are never stored in the application.
+
+---
+
+## Comparison with Original Python Script
+
+| Feature | Original CLI Script | This GUI App |
+|---------|-------------------|--------------|
+| Interface | Command line | Graphical window |
+| File selection | Manual typing | Browse button |
+| Progress visibility | Text output | Live scrolling log |
+| Azure auth | Interactive browser | Interactive browser (same) |
+| Functionality | ✅ Identical | ✅ Identical |
+
+Both use the exact same Azure libraries and authentication methods!
+
+---
+
+## Technical Details
+
+- **Language:** Python 3
+- **GUI Framework:** tkinter (built into Python)
+- **Azure Libraries:** `azure-identity`, `azure-storage-blob`
+- **Authentication:** InteractiveBrowserCredential (Azure CLI public client)
+- **Threading:** Background thread for downloads to keep UI responsive
+
+---
+
+## License
+
+MIT
