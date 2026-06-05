@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>MSAL Offscreen</title>
+</head>
+<body>
+  <!-- Invisible page – only purpose: run MSAL which needs DOM -->
+  <script src="msal-browser.js"></script>
+  <script>
+  (async () => {
+    chrome.runtime.onMessage.addListener(async (msg) => {
+      if (msg.type !== "START_AUTH") return;
+
+      const { clientId, authority, redirectUri } = msg.config;
+
+      const msalConfig = {
+        auth: { clientId, authority, redirectUri, navigateToLoginRequestUrl: false },
+        cache: { cacheLocation: "sessionStorage" }
+      };
+
+      try {
+        const pca = new msal.PublicClientApplication(msalConfig);
+        await pca.initialize();
+
+        // Try silent first (cached creds)
+        const accounts = pca.getAllAccounts();
+        let response = null;
+
+        if (accounts.length > 0) {
+          try {
+            response = await pca.acquireTokenSilent({
+              scopes: ["https://storage.azure.com/.default"],
+              account: accounts[0]
+            });
+          } catch (_) { /* fall through to popup */ }
+        }
+
+        if (!response) {
+          response = await pca.acquireTokenPopup({
+            scopes: ["https://storage.azure.com/.default"]
+          });
+        }
+
+        chrome.runtime.sendMessage({ type: "AUTH_COMPLETE", token: response.accessToken });
+      } catch (e) {
+        chrome.runtime.sendMessage({ type: "AUTH_COMPLETE", error: e.message || String(e) });
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
