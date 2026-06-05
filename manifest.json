@@ -19,7 +19,8 @@
   "permissions": [
     "downloads",
     "storage",
-    "activeTab"
+    "activeTab",
+    "offscreen"
   ],
   "background": {
     "service_worker": "background.js",

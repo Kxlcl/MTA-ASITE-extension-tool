@@ -1,22 +1,84 @@
 // ============================================================
 // background.js  –  Service Worker (MV3)
-// Fetches blobs from Azure using a SAS token.
+// Fetches blobs from Azure using Azure AD authentication.
 // ============================================================
 
 const STORAGE_ACCOUNT = "asitemta";
 const CONTAINER       = "asite-mta-data";
 const BASE_URL        = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER}`;
 
-// ---------- SAS token – generate from Azure Portal ----------
-// Portal → Storage Account → Data storage → Containers → select container
-//        → Shared access signature → Generate SAS and URL
-// Paste the query string here WITHOUT the leading '?'
-const SAS_TOKEN = "YOUR_SAS_TOKEN_HERE";
+// ---------- Azure AD Configuration ----------
+// Register your app at https://portal.azure.com → Azure Active Directory → App registrations
+// Set redirect URI to: chrome-extension://<your-extension-id>/offscreen.html
+const AZURE_CONFIG = {
+  clientId: "YOUR_CLIENT_ID_HERE",  // Application (client) ID from Azure
+  tenantId: "YOUR_TENANT_ID_HERE",  // Directory (tenant) ID from Azure
+};
+
+// Global token storage
+let accessToken = null;
+
+// ---------- Create offscreen document for MSAL ----------
+async function ensureOffscreenDocument() {
+  const offscreenUrl = chrome.runtime.getURL("offscreen.html");
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT"],
+    documentUrls: [offscreenUrl]
+  });
+
+  if (existingContexts.length > 0) return;
+
+  await chrome.offscreen.createDocument({
+    url: offscreenUrl,
+    reasons: ["DOM_SCRAPING"],
+    justification: "MSAL authentication requires DOM"
+  });
+}
+
+// ---------- Authenticate via Azure AD ----------
+async function authenticate() {
+  await ensureOffscreenDocument();
+
+  const extensionId = chrome.runtime.id;
+  const authority = `https://login.microsoftonline.com/${AZURE_CONFIG.tenantId}`;
+  const redirectUri = `https://${extensionId}.chromiumapp.org/offscreen.html`;
+
+  return new Promise((resolve, reject) => {
+    const listener = (msg) => {
+      if (msg.type === "AUTH_COMPLETE") {
+        chrome.runtime.onMessage.removeListener(listener);
+        if (msg.error) {
+          reject(new Error(msg.error));
+        } else {
+          accessToken = msg.token;
+          resolve(msg.token);
+        }
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+
+    chrome.runtime.sendMessage({
+      type: "START_AUTH",
+      config: {
+        clientId: AZURE_CONFIG.clientId,
+        authority,
+        redirectUri
+      }
+    });
+  });
+}
 
 // ---------- List blobs with a given prefix ----------
 async function listBlobs(prefix) {
-  const url = `${BASE_URL}?restype=container&comp=list&prefix=${encodeURIComponent(prefix)}&maxresults=5000&${SAS_TOKEN}`;
-  const res = await fetch(url);
+  if (!accessToken) throw new Error("Not authenticated");
+
+  const url = `${BASE_URL}?restype=container&comp=list&prefix=${encodeURIComponent(prefix)}&maxresults=5000`;
+  const res = await fetch(url, {
+    headers: {
+      "Authorization": `Bearer ${accessToken}`,
+      "x-ms-version": "2021-08-06"
+    }
+  });
   if (!res.ok) throw new Error(`List failed: ${res.status} ${res.statusText}`);
   const xml  = await res.text();
   const names = [...xml.matchAll(/<Name>([^<]+)<\/Name>/g)].map(m => m[1]);
@@ -25,8 +87,15 @@ async function listBlobs(prefix) {
 
 // ---------- Download a single blob and trigger browser download ----------
 async function downloadBlob(blobPath) {
-  const url = `${BASE_URL}/${encodeURIComponent(blobPath).replace(/%2F/g, "/")}?${SAS_TOKEN}`;
-  const res = await fetch(url);
+  if (!accessToken) throw new Error("Not authenticated");
+
+  const url = `${BASE_URL}/${encodeURIComponent(blobPath).replace(/%2F/g, "/")}`;
+  const res = await fetch(url, {
+    headers: {
+      "Authorization": `Bearer ${accessToken}`,
+      "x-ms-version": "2021-08-06"
+    }
+  });
   if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
   const blob     = await res.blob();
   const dataUrl  = await blobToDataUrl(blob);
@@ -74,9 +143,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "CONNECTION_TEST") {
     (async () => {
       try {
-        const url = `${BASE_URL}?restype=container&comp=list&maxresults=1&${SAS_TOKEN}`;
-        const res = await fetch(url);
+        // Authenticate and test connection
+        await authenticate();
+        const url = `${BASE_URL}?restype=container&comp=list&maxresults=1`;
+        const res = await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "x-ms-version": "2021-08-06"
+          }
+        });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (msg.type === "AUTHENTICATE") {
+    (async () => {
+      try {
+        await authenticate();
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({ ok: false, error: e.message });
