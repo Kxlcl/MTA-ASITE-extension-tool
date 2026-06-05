@@ -1,0 +1,116 @@
+name: Build Executables
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            output_name: MTA-ASITE-Downloader.exe
+            spec_file: build_exe_windows.spec
+            artifact_name: windows-executable
+            artifact_path: dist/MTA-ASITE-Downloader.exe
+          - os: macos-latest
+            output_name: MTA-ASITE-Downloader.app
+            spec_file: build_exe.spec
+            artifact_name: macos-executable
+            artifact_path: dist/MTA-ASITE-Downloader.app
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Build executable (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        pyinstaller ${{ matrix.spec_file }} --clean
+
+    - name: Build executable (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        pyinstaller ${{ matrix.spec_file }} --clean
+
+    - name: Verify build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        if (Test-Path "dist/MTA-ASITE-Downloader.exe") {
+          Write-Host "✅ Windows executable built successfully"
+          Get-Item "dist/MTA-ASITE-Downloader.exe" | Format-List
+        } else {
+          Write-Host "❌ Build failed"
+          exit 1
+        }
+      shell: pwsh
+
+    - name: Verify build (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        if [ -d "dist/MTA-ASITE-Downloader.app" ]; then
+          echo "✅ macOS app built successfully"
+          ls -lh dist/
+          du -sh dist/MTA-ASITE-Downloader.app
+        else
+          echo "❌ Build failed"
+          exit 1
+        fi
+
+    - name: Create ZIP (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        Compress-Archive -Path dist/MTA-ASITE-Downloader.exe -DestinationPath MTA-ASITE-Downloader-Windows.zip
+      shell: pwsh
+
+    - name: Create ZIP (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        cd dist
+        zip -r ../MTA-ASITE-Downloader-macOS.zip MTA-ASITE-Downloader.app
+        cd ..
+
+    - name: Upload Windows executable
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: MTA-ASITE-Downloader-Windows.zip
+        retention-days: 30
+
+    - name: Upload macOS executable
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: MTA-ASITE-Downloader-macOS.zip
+        retention-days: 30
+
+    # Create GitHub Release if this is a tag
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          MTA-ASITE-Downloader-*.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

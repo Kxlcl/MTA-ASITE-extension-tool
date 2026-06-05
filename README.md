@@ -1,43 +1,73 @@
-# MTA ASITE File Downloader – Python GUI App
+# MTA ASITE File Downloader
 
-A simple desktop application with graphical interface for downloading files from Azure Blob Storage. Built with Python's tkinter (no external GUI libraries needed).
+A simple desktop application for downloading files from Azure Blob Storage. Available as standalone executables for Windows and macOS - **no Python installation required**!
+
+---
+
+## 🚀 Quick Start (For End Users)
+
+### Download Standalone Executable
+
+**No Python needed!** Just download and run:
+
+- **Windows:** Download `MTA-ASITE-Downloader-Windows.zip`
+  - Extract and double-click `MTA-ASITE-Downloader.exe`
+
+- **macOS:** Download `MTA-ASITE-Downloader-macOS.zip`
+  - Extract and double-click `MTA-ASITE-Downloader.app`
+  - First time: Right-click → Open (to bypass security warning)
+
+See [USER_GUIDE.md](USER_GUIDE.md) for detailed instructions.
 
 ---
 
 ## Features
 
+- ✅ **Standalone Executables** – No Python installation required!
 - ✅ **Simple GUI** – No command line needed
-- ✅ **Azure AD Authentication** – Secure browser-based login (same as Azure CLI)
+- ✅ **Azure AD Authentication** – Secure browser-based login
 - ✅ **CSV Input** – Load file numbers from CSV
 - ✅ **Real-time Progress** – See files being downloaded live
 - ✅ **No CORS Issues** – Works as a native desktop app
 - ✅ **Read-Only** – Cannot delete or modify files, only download
+- ✅ **Cross-Platform** – Windows and macOS supported
 
 ---
 
-## Requirements
+## 📦 For Developers
 
+### Option 1: Build Standalone Executables (Recommended)
+
+**Automatic builds with GitHub Actions:**
+- Push to GitHub and executables are built automatically
+- See [WINDOWS_BUILD_GUIDE.md](WINDOWS_BUILD_GUIDE.md)
+
+**Manual builds:**
+- **macOS:** Run `./build.sh`
+- **Windows:** Run `build_windows.bat`
+
+Executables will be in the `dist/` folder.
+
+### Option 2: Run from Source
+
+**Requirements:**
 - Python 3.7 or later
-- Azure Python libraries:
-  ```bash
-  pip3 install azure-identity azure-storage-blob
-  ```
+- Dependencies: `pip install -r requirements.txt`
+
+**Run:**
+```bash
+python3 asite_downloader_gui.py
+```
 
 ---
 
-## Installation
+## 📚 Documentation
 
-1. **Clone or download this repository**
-
-2. **Install dependencies:**
-   ```bash
-   pip3 install azure-identity azure-storage-blob
-   ```
-
-3. **Run the app:**
-   ```bash
-   python3 asite_downloader_gui.py
-   ```
+- [USER_GUIDE.md](USER_GUIDE.md) - For end users
+- [WINDOWS_BUILD_GUIDE.md](WINDOWS_BUILD_GUIDE.md) - Building Windows executable
+- [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) - Building macOS executable
+- [DISTRIBUTION.md](DISTRIBUTION.md) - How to distribute
+- [QUICK_START.md](QUICK_START.md) - Quick reference
 
 ---
 
