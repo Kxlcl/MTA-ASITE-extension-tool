@@ -7,7 +7,7 @@ echo ========================================
 echo.
 
 echo [1/3] Installing dependencies...
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 if errorlevel 1 (
     echo.
     echo ERROR: Failed to install dependencies
@@ -22,7 +22,7 @@ if exist dist rmdir /s /q dist
 
 echo.
 echo [3/3] Building executable...
-pyinstaller build_exe_windows.spec --clean
+python -m PyInstaller build_exe_windows.spec --clean
 if errorlevel 1 (
     echo.
     echo ERROR: Build failed
